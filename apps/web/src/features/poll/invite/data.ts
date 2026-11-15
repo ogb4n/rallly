@@ -37,6 +37,7 @@ export async function getBallotSource({
     where: { id: pollId },
     select: {
       id: true,
+      kind: true,
       status: true,
       timeZone: true,
       hideParticipants: true,
@@ -65,6 +66,12 @@ export async function getBallotSource({
     return null;
   }
 
+  // The email ballot is built around time slots. Location polls are voted on
+  // from the poll page only until the ballot learns to show places.
+  if (poll.kind === "location") {
+    return null;
+  }
+
   return {
     pollId: poll.id,
     status: poll.status,
@@ -73,7 +80,9 @@ export async function getBallotSource({
     hideScores: poll.hideScores,
     allowTentativeVotes: poll.allowTentativeVotes,
     requireParticipantEmail: poll.requireParticipantEmail,
-    options: poll.options,
+    options: poll.options.flatMap(({ startTime, ...option }) =>
+      startTime ? [{ ...option, startTime }] : [],
+    ),
     responses: poll.participants.map(({ votes, ...response }) => ({
       ...response,
       votes: Object.fromEntries(

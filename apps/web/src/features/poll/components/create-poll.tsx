@@ -11,6 +11,10 @@ import {
 } from "@rallly/ui/card";
 import { Form } from "@rallly/ui/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@rallly/ui/popover";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@rallly/ui/segmented-control";
 import { toast } from "@rallly/ui/sonner";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -26,6 +30,7 @@ import {
   hasMixedOptionTypes,
   isAllDay,
 } from "@/features/poll/components/forms/poll-options-form/utils";
+import { PollPlacesForm } from "@/features/poll/components/forms/poll-places-form";
 import { PollSettingsForm } from "@/features/poll/components/forms/poll-settings";
 import type { NewEventData } from "@/features/poll/components/forms/types";
 import { SelectedOptionsCount } from "@/features/poll/components/selected-options-count";
@@ -82,6 +87,30 @@ const GuestModeBadge = () => {
         </p>
       </PopoverContent>
     </Popover>
+  );
+};
+
+const PollTypeToggle = () => {
+  const form = useFormContext<NewEventData>();
+  const pollType = form.watch("pollType");
+
+  return (
+    <SegmentedControl
+      aria-label="Poll type"
+      value={pollType}
+      onValueChange={(value) =>
+        form.setValue("pollType", value as NewEventData["pollType"], {
+          shouldDirty: true,
+        })
+      }
+    >
+      <SegmentedControlItem value="date" className="px-3 text-sm">
+        <Trans i18nKey="pollTypeDates" defaults="Dates" />
+      </SegmentedControlItem>
+      <SegmentedControlItem value="location" className="px-3 text-sm">
+        <Trans i18nKey="pollTypeLocation" defaults="Location" />
+      </SegmentedControlItem>
+    </SegmentedControl>
   );
 };
 
@@ -158,6 +187,8 @@ export const CreatePoll = ({
       conferencingLabel: "",
       view: "month",
       options: [],
+      pollType: "date",
+      places: [],
       hideScores: false,
       hideParticipants: false,
       requireParticipantEmail: true,
@@ -193,6 +224,7 @@ export const CreatePoll = ({
   });
 
   const makePoll = trpc.polls.make.useMutation();
+  const pollType = form.watch("pollType");
 
   // Explain the limit before the organizer fills in a form they can't submit.
   // The form persists, so it survives closing a poll to make room. The count
@@ -256,6 +288,22 @@ export const CreatePoll = ({
           id="create-poll"
           onSubmit={form.handleSubmit(async (formData) => {
             const title = required(formData?.title.trim());
+            const isLocationPoll = formData.pollType === "location";
+            const places = formData.places
+              .map((place) => ({
+                name: place.name.trim(),
+                address: place.address.trim(),
+                url: place.url.trim(),
+              }))
+              .filter((place) => place.name);
+            if (isLocationPoll && places.length === 0) {
+              toast.error(
+                t("placesRequiredError", {
+                  defaultValue: "Add at least one place",
+                }),
+              );
+              return;
+            }
             const session = await createGuestIfNeeded();
             if (!session.ok) {
               toast.error(
@@ -280,7 +328,9 @@ export const CreatePoll = ({
               // Fall back to the organizer's zone so a converting poll is always
               // anchored to a concrete zone.
               timeZone:
-                !formData?.lockTimeZone && !isAllDay(formData?.options ?? [])
+                !isLocationPoll &&
+                !formData?.lockTimeZone &&
+                !isAllDay(formData?.options ?? [])
                   ? formData?.timeZone || user?.timeZone || getBrowserTimeZone()
                   : null,
               hideParticipants: formData?.hideParticipants,
@@ -288,10 +338,16 @@ export const CreatePoll = ({
               hideScores: formData?.hideScores,
               allowTentativeVotes: formData?.allowTentativeVotes,
               requireParticipantEmail: formData?.requireParticipantEmail,
-              options: required(formData?.options).map((option) => ({
-                startDate: option.type === "date" ? option.date : option.start,
-                endDate: option.type === "timeSlot" ? option.end : undefined,
-              })),
+              ...(isLocationPoll
+                ? { places }
+                : {
+                    options: required(formData?.options).map((option) => ({
+                      startDate:
+                        option.type === "date" ? option.date : option.start,
+                      endDate:
+                        option.type === "timeSlot" ? option.end : undefined,
+                    })),
+                  }),
             });
 
             if (res.ok) {
@@ -342,7 +398,24 @@ export const CreatePoll = ({
               </CardContent>
             </Card>
 
-            <PollOptionsForm />
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  <Trans i18nKey="pollType" defaults="Poll type" />
+                </CardTitle>
+                <CardDescription>
+                  <Trans
+                    i18nKey="pollTypeDescription"
+                    defaults="What should participants vote on?"
+                  />
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PollTypeToggle />
+              </CardContent>
+            </Card>
+
+            {pollType === "location" ? <PollPlacesForm /> : <PollOptionsForm />}
 
             <PollSettingsForm />
           </div>

@@ -57,9 +57,17 @@ const encodeStoredOption = (
     : `${start}/${addMinutesToWallTime(start, option.duration)}`;
 };
 
+// The options that have a date. A location poll has none: its places are not
+// edited here, so the date form below it is left out.
+const getDatedOptions = (poll: PollDetails) =>
+  poll.options.flatMap(({ startTime, ...option }) =>
+    startTime ? [{ ...option, startTime }] : [],
+  );
+
 function getDefaultValues(poll: PollDetails): NewEventData {
+  const datedOptions = getDatedOptions(poll);
   const firstDate = toPollWallTime(
-    poll.options[0]?.startTime ?? new Date(),
+    datedOptions[0]?.startTime ?? new Date(),
     poll.timeZone,
   );
 
@@ -70,7 +78,9 @@ function getDefaultValues(poll: PollDetails): NewEventData {
     ...toConferencingFormValues(poll.conferencing),
     navigationDate: firstDate.slice(0, 10),
     view: "month",
-    options: poll.options.map((option) => {
+    pollType: poll.kind === "location" ? "location" : "date",
+    places: [],
+    options: datedOptions.map((option) => {
       const start = toPollWallTime(option.startTime, poll.timeZone);
       return option.duration > 0
         ? {
@@ -84,8 +94,8 @@ function getDefaultValues(poll: PollDetails): NewEventData {
     // A timed poll with no stored zone was locked to a single wall-clock time.
     // All-day polls are neutral (lock doesn't apply).
     lockTimeZone:
-      !poll.timeZone && poll.options.some((option) => option.duration > 0),
-    duration: poll.options[0]?.duration || 60,
+      !poll.timeZone && datedOptions.some((option) => option.duration > 0),
+    duration: datedOptions[0]?.duration || 60,
     hideParticipants: poll.hideParticipants,
     hideScores: poll.hideScores,
     enableComments: !poll.disableComments,
@@ -107,6 +117,12 @@ function getDateChanges({
   data: PollOptionsData;
   fallbackTimeZone: string;
 }) {
+  if (poll.kind === "location") {
+    return null;
+  }
+
+  const storedOptions = getDatedOptions(poll);
+
   // The submitted frame for the options: null when locked or all-day
   // (floating), else the organizer's zone.
   const timeZone =
@@ -123,8 +139,8 @@ function getDateChanges({
   const frameChanged = timeZone !== poll.timeZone;
 
   const optionsToDelete = frameChanged
-    ? poll.options
-    : poll.options.filter(
+    ? storedOptions
+    : storedOptions.filter(
         (option) =>
           !encodedOptions.includes(encodeStoredOption(option, poll.timeZone)),
       );
@@ -133,7 +149,7 @@ function getDateChanges({
     ? encodedOptions
     : encodedOptions.filter(
         (encoded) =>
-          !poll.options.some(
+          !storedOptions.some(
             (option) => encodeStoredOption(option, poll.timeZone) === encoded,
           ),
       );
@@ -293,7 +309,9 @@ export function EditPoll({
             <PollDetailsForm conferencing={conferencing} />
           </CardContent>
         </Card>
-        <PollOptionsForm disableTimeZoneChange={hasVotes} />
+        {poll.kind === "location" ? null : (
+          <PollOptionsForm disableTimeZoneChange={hasVotes} />
+        )}
         <PollSettingsForm hasTentativeVotes={hasTentativeVotes} />
         <div className="sticky bottom-0 z-20 flex justify-center pt-2 pb-6">
           <div className="flex w-full max-w-md items-center justify-between gap-x-4 rounded-full border border-popover-border bg-popover py-2 pr-2 pl-5 shadow-2xl shadow-black/40">

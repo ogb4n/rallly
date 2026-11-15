@@ -39,6 +39,7 @@ import { PayWallDialog } from "@/features/billing/components/pay-wall-dialog";
 import { ConferencingProviderIcon } from "@/features/conferencing/components/conferencing-provider-icon";
 import { conferencingProviderLabels } from "@/features/conferencing/utils";
 import { useParticipants, usePoll } from "@/features/poll/client";
+import { FinalizeLocationDialog } from "@/features/poll/components/finalize-location-dialog";
 import { ConnectedScoreSummary } from "@/features/poll/components/score-summary";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { VoteSummaryProgressBar } from "@/features/poll/components/vote-summary-progress-bar";
@@ -581,7 +582,14 @@ function FinalizeWizard({
     payWall.trigger();
   };
   const options = React.useMemo(
-    () => rankOptionsByPopularity({ options: poll.options, participants }),
+    () =>
+      rankOptionsByPopularity({
+        // Location polls never reach this wizard, so every option is dated.
+        options: poll.options.flatMap(({ startTime, ...option }) =>
+          startTime ? [{ ...option, startTime }] : [],
+        ),
+        participants,
+      }),
     [poll.options, participants],
   );
   const [optionId, setOptionId] = React.useState<string | null>(null);
@@ -756,6 +764,14 @@ function FinalizeWizard({
 }
 
 export function FinalizePollDialog(props: DialogProps) {
+  const poll = usePoll();
+  if (poll.kind === "location") {
+    return <FinalizeLocationDialog {...props} />;
+  }
+  return <FinalizeDatePollDialog {...props} />;
+}
+
+function FinalizeDatePollDialog(props: DialogProps) {
   const [step, setStep] = React.useState<Step>("date");
   const onOpenChange = (open: boolean) => {
     if (!open && step !== "done") {
