@@ -78,6 +78,27 @@ jobs:
         with:
           fetch-depth: 0 # historique complet : attribution des issues et période de référence
 
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/pnpm-install
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      # Le fournisseur de couverture est ajouté à la volée, à la version exacte de vitest :
+      # le déclarer dans package.json ferait conflit avec le lockfile d'upstream à chaque merge
+      - name: Tests unitaires avec couverture
+        run: |
+          version=$(node -p "require('vitest/package.json').version")
+          pnpm add -w -D "@vitest/coverage-v8@${version}"
+          pnpm test:unit -- --coverage --coverage.provider=v8 --coverage.reporter=lcov
+
+      # Vitest écrit les chemins relatifs au paquet (src/...) : SonarQube les lit depuis la racine
+      - name: Chemins des rapports de couverture
+        run: |
+          find apps packages -name node_modules -prune -o -path '*/coverage/lcov.info' -print | while read -r f; do
+            sed -i "s#^SF:#SF:$(dirname "$(dirname "$f")")/#" "$f"
+          done
+
       # Échoue si la barrière qualité de SonarQube n'est pas franchie
       - name: SonarQube
         uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
