@@ -40,6 +40,7 @@ import {
   checkOpenPollCapacity,
   OpenPollLimitError,
 } from "@/features/poll/limit/mutations";
+import { canApplyPlaceLimit } from "@/features/poll/mutations";
 import { MAX_POLL_DESCRIPTION_LENGTH } from "@/features/poll/schema";
 import {
   getChosenOptionRank,
@@ -642,26 +643,18 @@ export const polls = router({
           }
         }
 
-        const nextLimit = input.maxYesVotesPerOption;
-        if (
-          typeof nextLimit === "number" &&
-          (prior.maxYesVotesPerOption === null ||
-            nextLimit < prior.maxYesVotesPerOption)
-        ) {
-          const overLimit = await tx.vote.groupBy({
-            by: ["optionId"],
-            where: { pollId, type: "yes" },
-            _count: { _all: true },
-            having: { optionId: { _count: { gt: nextLimit } } },
-          });
+        const placeLimitFits = await canApplyPlaceLimit(tx, {
+          pollId,
+          nextLimit: input.maxYesVotesPerOption,
+          currentLimit: prior.maxYesVotesPerOption,
+        });
 
-          if (overLimit.length > 0) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "The place limit cannot be lower than the yes votes an option already has",
-            });
-          }
+        if (!placeLimitFits) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "The place limit cannot be lower than the yes votes an option already has",
+          });
         }
 
         // Reopen an auto-closed poll when new future dates are added. Manually
