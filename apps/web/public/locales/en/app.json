@@ -742,6 +742,7 @@
   "optional": "(optional)",
   "optionalLabel": "(Optional)",
   "optionCount": "{count, plural, one {# option} other {# options}}",
+  "optionFullError": "An option you said \"yes\" to is full. Change that answer and try again.",
   "optionsSelected": "{count, plural, =0 {None selected} one {# option selected} other {# options selected}}",
   "optionVoteBreakdown": "{yesScore} yes, {ifNeedBeScore} if need be",
   "optionVoteBreakdownYesOnly": "{yesScore} yes",
