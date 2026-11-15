@@ -44,10 +44,13 @@ function TestForm({
   });
   return (
     <Form {...form}>
-      <PollSettingsForm
-        hasTentativeVotes={hasTentativeVotes}
-        minYesVotesPerOption={minYesVotesPerOption}
-      />
+      <form onSubmit={form.handleSubmit(() => {})}>
+        <PollSettingsForm
+          hasTentativeVotes={hasTentativeVotes}
+          minYesVotesPerOption={minYesVotesPerOption}
+        />
+        <button type="submit">Submit</button>
+      </form>
     </Form>
   );
 }
@@ -219,5 +222,24 @@ describe("PollSettingsForm place limit", () => {
   it("shows the stored limit", () => {
     render(<TestForm maxYesVotesPerOption={3} />);
     expect(screen.getByRole("spinbutton")).toHaveValue(3);
+  });
+
+  it("takes the number typed in", async () => {
+    const user = userEvent.setup();
+    render(<TestForm maxYesVotesPerOption={3} />);
+    const input = screen.getByRole("spinbutton");
+    await user.clear(input);
+    await user.type(input, "7");
+    expect(input).toHaveValue(7);
+  });
+
+  it("asks for a number when the field is left empty", async () => {
+    const user = userEvent.setup();
+    render(<TestForm maxYesVotesPerOption={5} minYesVotesPerOption={4} />);
+    await user.clear(screen.getByRole("spinbutton"));
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    expect(
+      await screen.findByText(/Enter a whole number of at least/),
+    ).toBeInTheDocument();
   });
 });
