@@ -32,7 +32,10 @@ import type {
 import { useUpdatePollMutation } from "@/features/poll/components/mutations";
 import { SelectedOptionsCount } from "@/features/poll/components/selected-options-count";
 import type { PollDetails } from "@/features/poll/types";
-import { filterParticipantsByVote } from "@/features/poll/utils";
+import {
+  filterParticipantsByVote,
+  getDatedOptions,
+} from "@/features/poll/utils";
 import { useUser } from "@/features/user/client";
 import { Trans, useTranslation } from "@/i18n/client";
 import {
@@ -57,15 +60,9 @@ const encodeStoredOption = (
     : `${start}/${addMinutesToWallTime(start, option.duration)}`;
 };
 
-// The options that have a date. A location poll has none: its places are not
-// edited here, so the date form below it is left out.
-const getDatedOptions = (poll: PollDetails) =>
-  poll.options.flatMap(({ startTime, ...option }) =>
-    startTime ? [{ ...option, startTime }] : [],
-  );
-
 function getDefaultValues(poll: PollDetails): NewEventData {
-  const datedOptions = getDatedOptions(poll);
+  // A location poll has no dated options: its places are not edited here.
+  const datedOptions = getDatedOptions(poll.options);
   const firstDate = toPollWallTime(
     datedOptions[0]?.startTime ?? new Date(),
     poll.timeZone,
@@ -121,7 +118,7 @@ function getDateChanges({
     return null;
   }
 
-  const storedOptions = getDatedOptions(poll);
+  const storedOptions = getDatedOptions(poll.options);
 
   // The submitted frame for the options: null when locked or all-day
   // (floating), else the organizer's zone.

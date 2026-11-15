@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@rallly/database";
+import { getDatedOptions } from "@/features/poll/utils";
 import type { BallotSource } from "./types";
 
 /**
@@ -80,9 +81,7 @@ export async function getBallotSource({
     hideScores: poll.hideScores,
     allowTentativeVotes: poll.allowTentativeVotes,
     requireParticipantEmail: poll.requireParticipantEmail,
-    options: poll.options.flatMap(({ startTime, ...option }) =>
-      startTime ? [{ ...option, startTime }] : [],
-    ),
+    options: getDatedOptions(poll.options),
     responses: poll.participants.map(({ votes, ...response }) => ({
       ...response,
       votes: Object.fromEntries(

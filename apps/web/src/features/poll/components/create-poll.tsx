@@ -11,10 +11,6 @@ import {
 } from "@rallly/ui/card";
 import { Form } from "@rallly/ui/form";
 import { Popover, PopoverContent, PopoverTrigger } from "@rallly/ui/popover";
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-} from "@rallly/ui/segmented-control";
 import { toast } from "@rallly/ui/sonner";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -32,6 +28,7 @@ import {
 } from "@/features/poll/components/forms/poll-options-form/utils";
 import { PollPlacesForm } from "@/features/poll/components/forms/poll-places-form";
 import { PollSettingsForm } from "@/features/poll/components/forms/poll-settings";
+import { PollTypeToggle } from "@/features/poll/components/forms/poll-type-toggle";
 import type { NewEventData } from "@/features/poll/components/forms/types";
 import { SelectedOptionsCount } from "@/features/poll/components/selected-options-count";
 import { SHARE_POLL_FLASH_KEY } from "@/features/poll/constants";
@@ -41,6 +38,7 @@ import {
 } from "@/features/poll/limit/client";
 import type { OpenPollUsage } from "@/features/poll/limit/types";
 import { isAtOpenPollLimit } from "@/features/poll/limit/utils";
+import { toPlaceInputs } from "@/features/poll/utils";
 import { useUser } from "@/features/user/client";
 import { UserDropdown } from "@/features/user/components/user-dropdown";
 import { Trans, useTranslation } from "@/i18n/client";
@@ -87,30 +85,6 @@ const GuestModeBadge = () => {
         </p>
       </PopoverContent>
     </Popover>
-  );
-};
-
-const PollTypeToggle = () => {
-  const form = useFormContext<NewEventData>();
-  const pollType = form.watch("pollType");
-
-  return (
-    <SegmentedControl
-      aria-label="Poll type"
-      value={pollType}
-      onValueChange={(value) =>
-        form.setValue("pollType", value as NewEventData["pollType"], {
-          shouldDirty: true,
-        })
-      }
-    >
-      <SegmentedControlItem value="date" className="px-3 text-sm">
-        <Trans i18nKey="pollTypeDates" defaults="Dates" />
-      </SegmentedControlItem>
-      <SegmentedControlItem value="location" className="px-3 text-sm">
-        <Trans i18nKey="pollTypeLocation" defaults="Location" />
-      </SegmentedControlItem>
-    </SegmentedControl>
   );
 };
 
@@ -289,13 +263,7 @@ export const CreatePoll = ({
           onSubmit={form.handleSubmit(async (formData) => {
             const title = required(formData?.title.trim());
             const isLocationPoll = formData.pollType === "location";
-            const places = formData.places
-              .map((place) => ({
-                name: place.name.trim(),
-                address: place.address.trim(),
-                url: place.url.trim(),
-              }))
-              .filter((place) => place.name);
+            const places = toPlaceInputs(formData.places);
             if (isLocationPoll && places.length === 0) {
               toast.error(
                 t("placesRequiredError", {

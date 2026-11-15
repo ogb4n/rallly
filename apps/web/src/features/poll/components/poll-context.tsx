@@ -4,6 +4,7 @@ import React from "react";
 import { useRequiredContext } from "@/components/use-required-context";
 import { useParticipants } from "@/features/poll/client";
 import type { PollDetails, PollOption } from "@/features/poll/types";
+import { getDatedOptions } from "@/features/poll/utils";
 import { useDateTimeConfig } from "@/lib/datetime/client";
 import {
   formatDateParts,
@@ -171,9 +172,7 @@ export function createOptionsContextValue({
 
   // Past this point every option has a start time: the dates and times of one
   // poll are never mixed with places.
-  const datedOptions = pollOptions.flatMap(({ startTime, ...option }) =>
-    startTime ? [{ ...option, startTime }] : [],
-  );
+  const datedOptions = getDatedOptions(pollOptions);
 
   if (datedOptions[0].duration > 0) {
     // Floating times are stored as UTC wall times, so reading them in UTC

@@ -47,7 +47,10 @@ import type { VoteType } from "@/features/poll/constants";
 import { VOTE_TYPES } from "@/features/poll/constants";
 import type { PollParticipant } from "@/features/poll/types";
 import type { OptionVotes } from "@/features/poll/utils";
-import { rankOptionsByPopularity } from "@/features/poll/utils";
+import {
+  getDatedOptions,
+  rankOptionsByPopularity,
+} from "@/features/poll/utils";
 import {
   EventDate,
   EventTimeRange,
@@ -585,9 +588,7 @@ function FinalizeWizard({
     () =>
       rankOptionsByPopularity({
         // Location polls never reach this wizard, so every option is dated.
-        options: poll.options.flatMap(({ startTime, ...option }) =>
-          startTime ? [{ ...option, startTime }] : [],
-        ),
+        options: getDatedOptions(poll.options),
         participants,
       }),
     [poll.options, participants],
