@@ -69,6 +69,7 @@ import {
   ballotBarButtonClassName,
   ballotToggleClassName,
 } from "@/features/poll/invite/components/ballot-pill";
+import { BallotPlacesLeft } from "@/features/poll/invite/components/ballot-places-left";
 import { BallotResponseOptions } from "@/features/poll/invite/components/ballot-response-options";
 import { BallotTimeControls } from "@/features/poll/invite/components/ballot-time-controls";
 import { BallotTimeText } from "@/features/poll/invite/components/ballot-time-text";
@@ -405,7 +406,10 @@ export function AccessibleBallot({
     ? ["yes", "ifNeedBe", "no"]
     : ["yes", "no"];
 
+  const isFull = (optionId: string) => ballot.placesLeft?.[optionId] === 0;
   const votable = ballot.options.filter((option) => !past.ids.has(option.id));
+  const yesTargets = votable.filter((option) => !isFull(option.id));
+  const everyOptionFull = votable.length > 0 && yesTargets.length === 0;
   const answeredCount = votable.filter(
     (option) => state.answers[option.id],
   ).length;
@@ -527,9 +531,11 @@ export function AccessibleBallot({
   // The answers a shortcut replaced; null while no shortcut is on.
   const [answersBeforeShortcut, setAnswersBeforeShortcut] =
     React.useState<Record<string, BallotVote> | null>(null);
+  const shortcutTargets = (vote: BallotVote) =>
+    vote === "yes" ? yesTargets : votable;
   const allMarked = (vote: BallotVote) =>
-    votable.length > 0 &&
-    votable.every((option) => state.answers[option.id] === vote);
+    shortcutTargets(vote).length > 0 &&
+    shortcutTargets(vote).every((option) => state.answers[option.id] === vote);
   // Only a shortcut can be undone: every option answered the same by hand has
   // nothing to go back to, so its button keeps its name and does nothing.
   const shortcutOn = (vote: BallotVote) =>
@@ -567,13 +573,15 @@ export function AccessibleBallot({
       setAnswersBeforeShortcut(state.answers);
     }
     state.setVotes(
-      Object.fromEntries(votable.map((option) => [option.id, vote])),
+      Object.fromEntries(
+        shortcutTargets(vote).map((option) => [option.id, vote]),
+      ),
     );
     setStatus(
       t("screenReaderMarkedAll", {
         defaultValue:
           "{count, plural, one {# option set to {answer}} other {All # options set to {answer}}}",
-        count: votable.length,
+        count: shortcutTargets(vote).length,
         answer: answerLabels[vote],
       }),
     );
@@ -1593,25 +1601,27 @@ export function AccessibleBallot({
                 <div className="mt-4 flex flex-wrap gap-2">
                   {showShortcuts ? (
                     <>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className={cn(
-                          ballotToggleClassName,
-                          "shrink-0 rounded-full",
-                          shortcutOn("yes") && shortcutOnClassName,
-                        )}
-                        onClick={() => markAll("yes")}
-                      >
-                        {shortcutOn("yes") ? (
-                          <Trans i18nKey="undo" defaults="Undo" />
-                        ) : (
-                          <Trans
-                            i18nKey="screenReaderMarkAllYes"
-                            defaults="Yes to all"
-                          />
-                        )}
-                      </Button>
+                      {everyOptionFull ? null : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className={cn(
+                            ballotToggleClassName,
+                            "shrink-0 rounded-full",
+                            shortcutOn("yes") && shortcutOnClassName,
+                          )}
+                          onClick={() => markAll("yes")}
+                        >
+                          {shortcutOn("yes") ? (
+                            <Trans i18nKey="undo" defaults="Undo" />
+                          ) : (
+                            <Trans
+                              i18nKey="screenReaderMarkAllYes"
+                              defaults="Yes to all"
+                            />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         variant="ghost"
@@ -1643,6 +1653,19 @@ export function AccessibleBallot({
                 </div>
               ) : null}
 
+              {everyOptionFull ? (
+                <p
+                  data-testid="ballot-every-option-full"
+                  className="mt-4 rounded-xl bg-gray-100 px-3 py-2 text-sm dark:bg-white/5"
+                >
+                  <Trans
+                    i18nKey="ballotEveryOptionFull"
+                    defaults={
+                      'Every option is full. You can still answer "if need be" or "no".'
+                    }
+                  />
+                </p>
+              ) : null}
               <div className="mt-5 flex flex-col gap-4">
                 {groups.map((group) => {
                   const first = optionsById.get(group.optionIds[0] ?? "");
@@ -1686,7 +1709,11 @@ export function AccessibleBallot({
                                 return;
                               answerOne(
                                 optionId,
-                                nextVote(vote, ballot.allowTentativeVotes),
+                                nextVote(
+                                  vote,
+                                  ballot.allowTentativeVotes,
+                                  !isFull(optionId),
+                                ),
                               );
                             }}
                             className={cn(
@@ -1739,6 +1766,9 @@ export function AccessibleBallot({
                                 changed={timesChanged}
                               />
                             </span>
+                            <BallotPlacesLeft
+                              placesLeft={ballot.placesLeft?.[optionId]}
+                            />
                             {liveCount !== null ? (
                               <span
                                 aria-hidden="true"
@@ -1760,60 +1790,65 @@ export function AccessibleBallot({
                                 radiosUntilKeyboardClassName,
                               )}
                             >
-                              {answerChoices.map((choice) => (
-                                <label
-                                  key={choice}
-                                  className={cn(
-                                    "relative block",
-                                    radioUntilKeyboardClassName,
-                                  )}
-                                >
-                                  <input
-                                    type="radio"
-                                    className="peer absolute inset-0 z-10 m-0 size-full cursor-pointer scroll-mt-16 scroll-mb-24 opacity-0"
-                                    name={`vote-${optionId}`}
-                                    value={choice}
-                                    checked={vote === choice}
-                                    onChange={() => {
-                                      // What is being saved is what stays, so
-                                      // answers hold still until it lands.
-                                      if (pending) {
-                                        setStatus(
-                                          t("voteSaveInProgress", {
-                                            defaultValue:
-                                              "Your answers are still saving. Try again when that finishes.",
-                                          }),
-                                        );
-                                      } else {
-                                        answerOne(optionId, choice);
-                                      }
-                                    }}
-                                  />
-                                  <span
-                                    aria-hidden="true"
+                              {answerChoices
+                                .filter(
+                                  (choice) =>
+                                    choice !== "yes" || !isFull(optionId),
+                                )
+                                .map((choice) => (
+                                  <label
+                                    key={choice}
                                     className={cn(
-                                      "flex size-9 items-center justify-center rounded-full border bg-background outline-ring outline-offset-2 transition-[border-color] duration-150 peer-checked:border-2 peer-focus-visible:outline-2 motion-reduce:transition-none [&_svg]:brightness-75 [&_svg]:grayscale peer-checked:[&_svg]:brightness-100 peer-checked:[&_svg]:grayscale-0 lg:[@media(pointer:fine)]:size-6",
-                                      // One colour per answer in every state;
-                                      // only its strength changes.
-                                      choice === "yes" &&
-                                        "border-green-600/40 peer-checked:border-green-600 peer-hover:border-green-600/70",
-                                      choice === "ifNeedBe" &&
-                                        "border-amber-500/40 peer-checked:border-amber-500 peer-hover:border-amber-500/70",
-                                      choice === "no" &&
-                                        "border-gray-500/40 peer-checked:border-gray-500 peer-hover:border-gray-500/70 dark:border-gray-400/40 dark:peer-hover:border-gray-400/70 dark:peer-checked:border-gray-400",
+                                      "relative block",
+                                      radioUntilKeyboardClassName,
                                     )}
                                   >
-                                    <VoteIcon
-                                      round
-                                      type={choice}
-                                      className="size-5 lg:[@media(pointer:fine)]:size-4"
+                                    <input
+                                      type="radio"
+                                      className="peer absolute inset-0 z-10 m-0 size-full cursor-pointer scroll-mt-16 scroll-mb-24 opacity-0"
+                                      name={`vote-${optionId}`}
+                                      value={choice}
+                                      checked={vote === choice}
+                                      onChange={() => {
+                                        // What is being saved is what stays, so
+                                        // answers hold still until it lands.
+                                        if (pending) {
+                                          setStatus(
+                                            t("voteSaveInProgress", {
+                                              defaultValue:
+                                                "Your answers are still saving. Try again when that finishes.",
+                                            }),
+                                          );
+                                        } else {
+                                          answerOne(optionId, choice);
+                                        }
+                                      }}
                                     />
-                                  </span>
-                                  <span className="sr-only">
-                                    {answerLabels[choice]}
-                                  </span>
-                                </label>
-                              ))}
+                                    <span
+                                      aria-hidden="true"
+                                      className={cn(
+                                        "flex size-9 items-center justify-center rounded-full border bg-background outline-ring outline-offset-2 transition-[border-color] duration-150 peer-checked:border-2 peer-focus-visible:outline-2 motion-reduce:transition-none [&_svg]:brightness-75 [&_svg]:grayscale peer-checked:[&_svg]:brightness-100 peer-checked:[&_svg]:grayscale-0 lg:[@media(pointer:fine)]:size-6",
+                                        // One colour per answer in every state;
+                                        // only its strength changes.
+                                        choice === "yes" &&
+                                          "border-green-600/40 peer-checked:border-green-600 peer-hover:border-green-600/70",
+                                        choice === "ifNeedBe" &&
+                                          "border-amber-500/40 peer-checked:border-amber-500 peer-hover:border-amber-500/70",
+                                        choice === "no" &&
+                                          "border-gray-500/40 peer-checked:border-gray-500 peer-hover:border-gray-500/70 dark:border-gray-400/40 dark:peer-hover:border-gray-400/70 dark:peer-checked:border-gray-400",
+                                      )}
+                                    >
+                                      <VoteIcon
+                                        round
+                                        type={choice}
+                                        className="size-5 lg:[@media(pointer:fine)]:size-4"
+                                      />
+                                    </span>
+                                    <span className="sr-only">
+                                      {answerLabels[choice]}
+                                    </span>
+                                  </label>
+                                ))}
                             </div>
                           </fieldset>
                         );
