@@ -76,4 +76,29 @@ test.describe
         .toBe(2);
       expect(await yesVotesOnFullestOption()).toBe(1);
     });
+
+    test("the ballot shows which options are full before voting", async ({
+      browser,
+    }) => {
+      const visitor = await (await browser.newContext()).newPage();
+      await visitor.goto(`/invite/${pollId}/vote`);
+      const options = visitor
+        .getByRole("main")
+        .locator("fieldset:has(input[type=radio])");
+      await expect(options.first()).toBeVisible();
+
+      const full = options.nth(0);
+      await expect(full.getByTestId("ballot-places-left")).toHaveText("Full");
+      await expect(full.getByRole("radio", { name: "Yes" })).toHaveCount(0);
+      await expect(full.getByRole("radio", { name: "If need be" })).toHaveCount(
+        1,
+      );
+
+      await expect(options.nth(1).getByTestId("ballot-places-left")).toHaveText(
+        "1 place left",
+      );
+      await expect(
+        options.nth(1).getByRole("radio", { name: "Yes" }),
+      ).toHaveCount(1);
+    });
   });

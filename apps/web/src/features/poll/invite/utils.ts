@@ -88,6 +88,7 @@ export function projectBallot({
   return {
     pollId: source.pollId,
     timeZone: source.timeZone,
+    placesLeft: countPlacesLeft({ source, isOwn, showScores }),
     isDatePoll: source.options.every((option) => option.duration === 0),
     allowTentativeVotes: source.allowTentativeVotes,
     requireParticipantEmail: source.requireParticipantEmail,
@@ -101,6 +102,31 @@ export function projectBallot({
     responseCount: source.responses.length,
     ownResponses,
   };
+}
+
+function countPlacesLeft({
+  source,
+  isOwn,
+  showScores,
+}: {
+  source: BallotSource;
+  isOwn: (response: BallotSource["responses"][number]) => boolean;
+  showScores: boolean;
+}): Ballot["placesLeft"] {
+  const limit = source.maxYesVotesPerOption;
+  if (limit === null) {
+    return null;
+  }
+
+  return Object.fromEntries(
+    source.options.map((option) => {
+      const taken = source.responses.filter(
+        (response) => !isOwn(response) && response.votes[option.id] === "yes",
+      ).length;
+      const left = Math.max(0, limit - taken);
+      return [option.id, showScores || left === 0 ? left : null];
+    }),
+  );
 }
 
 export type BallotGroup = { key: string; optionIds: string[] };
@@ -187,11 +213,12 @@ export function isOptionPast({
 export function nextVote(
   current: BallotVote | undefined,
   allowTentativeVotes: boolean,
+  canSayYes = true,
 ): BallotVote {
   switch (current) {
     case undefined:
     case "no":
-      return "yes";
+      return canSayYes ? "yes" : nextVote("yes", allowTentativeVotes);
     case "yes":
       return allowTentativeVotes ? "ifNeedBe" : "no";
     case "ifNeedBe":

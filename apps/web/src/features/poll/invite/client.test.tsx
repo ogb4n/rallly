@@ -17,6 +17,7 @@ function ballot(overrides: Partial<Ballot> = {}): Ballot {
     ],
     tallies: {},
     responseCount: 0,
+    placesLeft: null,
     ownResponses: [],
     ...overrides,
   };
