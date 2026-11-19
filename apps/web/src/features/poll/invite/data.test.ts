@@ -17,6 +17,7 @@ const poll = (overrides: Record<string, unknown>) => ({
   hideScores: false,
   allowTentativeVotes: true,
   requireParticipantEmail: false,
+  maxYesVotesPerOption: null,
   deleted: false,
   options: [],
   participants: [],
@@ -46,6 +47,13 @@ describe("getBallotSource", () => {
     await expect(getBallotSource({ pollId: "poll-1" })).resolves.toMatchObject({
       pollId: "poll-1",
       status: "open",
+    });
+  });
+
+  it("passes the place limit to the ballot", async () => {
+    mocks.findUnique.mockResolvedValue(poll({ maxYesVotesPerOption: 3 }));
+    await expect(getBallotSource({ pollId: "poll-1" })).resolves.toMatchObject({
+      maxYesVotesPerOption: 3,
     });
   });
 });

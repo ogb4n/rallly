@@ -45,6 +45,7 @@ export async function getBallotSource({
       hideScores: true,
       allowTentativeVotes: true,
       requireParticipantEmail: true,
+      maxYesVotesPerOption: true,
       deleted: true,
       options: {
         select: { id: true, startTime: true, duration: true },
@@ -81,6 +82,7 @@ export async function getBallotSource({
     hideScores: poll.hideScores,
     allowTentativeVotes: poll.allowTentativeVotes,
     requireParticipantEmail: poll.requireParticipantEmail,
+    maxYesVotesPerOption: poll.maxYesVotesPerOption,
     options: getDatedOptions(poll.options),
     responses: poll.participants.map(({ votes, ...response }) => ({
       ...response,

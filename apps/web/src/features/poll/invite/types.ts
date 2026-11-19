@@ -21,6 +21,7 @@ export type BallotSource = {
   hideScores: boolean;
   allowTentativeVotes: boolean;
   requireParticipantEmail: boolean;
+  maxYesVotesPerOption: number | null;
   /** Ordered by start time. */
   options: { id: string; startTime: Date; duration: number }[];
   /** Newest first. */
@@ -59,6 +60,7 @@ export type Ballot = {
   tallies: Record<string, BallotTallyEntry[]> | null;
   /** How many responses the poll has, the bar each option is measured against. */
   responseCount: number;
+  placesLeft: Record<string, number | null> | null;
   /** The response an edit link names first, then newest first. */
   ownResponses: {
     id: string;

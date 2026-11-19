@@ -59,6 +59,7 @@ function ballotSource(overrides: Partial<BallotSource> = {}): BallotSource {
     hideScores: false,
     allowTentativeVotes: true,
     requireParticipantEmail: false,
+    maxYesVotesPerOption: null,
     options: [
       { id: "o1", startTime: new Date("2026-11-18T09:00:00Z"), duration: 60 },
       { id: "o2", startTime: new Date("2026-11-18T11:00:00Z"), duration: 60 },
@@ -300,5 +301,61 @@ describe("nextVote", () => {
   it("skips if need be when the poll disallows it", () => {
     expect(nextVote("yes", false)).toBe("no");
     expect(nextVote("no", false)).toBe("yes");
+  });
+
+  it("skips yes on a full option", () => {
+    expect(nextVote(undefined, true, false)).toBe("ifNeedBe");
+    expect(nextVote("no", true, false)).toBe("ifNeedBe");
+    expect(nextVote("ifNeedBe", true, false)).toBe("no");
+  });
+
+  it("stays on no for a full option when if need be is off", () => {
+    expect(nextVote(undefined, false, false)).toBe("no");
+    expect(nextVote("no", false, false)).toBe("no");
+  });
+});
+
+describe("projectBallot places left", () => {
+  it("has no places when the poll has no limit", () => {
+    const ballot = projectBallot({ source: ballotSource(), viewer: anonymous });
+    expect(ballot.placesLeft).toBeNull();
+  });
+
+  it("counts the yes votes taken on each option", () => {
+    const ballot = projectBallot({
+      source: ballotSource({ maxYesVotesPerOption: 1 }),
+      viewer: anonymous,
+    });
+    expect(ballot.placesLeft).toEqual({ o1: 0, o2: 0 });
+  });
+
+  it("does not count the viewer's own yes against them", () => {
+    const ballot = projectBallot({
+      source: ballotSource({ maxYesVotesPerOption: 1 }),
+      viewer: { userId: "u1", linkedResponseIds: [] },
+    });
+    expect(ballot.placesLeft).toEqual({ o1: 1, o2: 0 });
+  });
+
+  it("does not count if need be votes as places", () => {
+    const ballot = projectBallot({
+      source: ballotSource({ maxYesVotesPerOption: 2 }),
+      viewer: anonymous,
+    });
+    expect(ballot.placesLeft).toEqual({ o1: 1, o2: 1 });
+  });
+
+  it("only says which options are full when scores are hidden", () => {
+    const ballot = projectBallot({
+      source: ballotSource({ maxYesVotesPerOption: 2, hideScores: true }),
+      viewer: anonymous,
+    });
+    expect(ballot.placesLeft).toEqual({ o1: null, o2: null });
+
+    const full = projectBallot({
+      source: ballotSource({ maxYesVotesPerOption: 1, hideScores: true }),
+      viewer: anonymous,
+    });
+    expect(full.placesLeft).toEqual({ o1: 0, o2: 0 });
   });
 });
